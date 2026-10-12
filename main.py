@@ -2,25 +2,24 @@ import sys
 import os
 import subprocess
 import re
-import pygments
+import shutil
 from time import time
 
 def benchmark(func):
-  def timer():
+  def timer(*args, **kwargs):
     start = time()
-    func()
+    result = func(*args, **kwargs)
     stop = time()
     print('Time taken : %.3fs' %(stop - start))
-    return
+    return result
   return timer
 
 section = ['section', 'subsection', 'subsubsection', 'paragraph']
 text = ''
 
 minted_opts = """
-    breaklines = true,
-    breakanywhere = true,
-    frame=lines,    
+    breaklines=true,
+    frame=lines,
     fontfamily=tt,
     linenos=false,
     numberblanklines=true,
@@ -31,12 +30,23 @@ minted_opts = """
     funcnamehighlighting=true,
     tabsize=2,
     obeytabs=false,
-    mathescape=false
-    samepage=false, %with this setting you can force the list to appear on the same page
+    mathescape=false,
+    samepage=false,
     showspaces=false,
-    showtabs =false,
+    showtabs=false,
     texcl=false
 """
+
+EXT_TO_LANG = {
+    '.cpp': 'C++',
+    '.cc': 'C++',
+    '.cxx': 'C++',
+    '.h': 'C++',
+    '.hpp': 'C++',
+    '.py': 'python',
+    '.java': 'java',
+    '.sh': 'bash',
+}
 
 COMMENT_TYPES = [
     ('/**', '*/'),
@@ -59,57 +69,62 @@ def parse_include(line):
         return line[8:].strip()
     return None
 
-def escape(input):
-    input = input.replace('<', r'\ensuremath{<}')
-    input = input.replace('>', r'\ensuremath{>}')
-    return input
+def escape(input_str):
+    input_str = input_str.replace('<', r'\ensuremath{<}')
+    input_str = input_str.replace('>', r'\ensuremath{>}')
+    return input_str
 
-def pathescape(input):
-    input = input.replace('\\', r'\\')
-    input = input.replace('_', r'\_')
-    input = escape(input)
-    return input
+def pathescape(input_str):
+    input_str = input_str.replace('\\', r'\\')
+    input_str = input_str.replace('_', r'\_')
+    input_str = escape(input_str)
+    return input_str
 
-def codeescape(input):
-    input = input.replace('_', r'\_')
-    input = input.replace('\n', '\\\\\n')
-    input = input.replace('{', r'\{')
-    input = input.replace('}', r'\}')
-    input = input.replace('^', r'\ensuremath{\hat{\;}}')
-    input = escape(input)
-    return input
+def codeescape(input_str):
+    input_str = input_str.replace('_', r'\_')
+    input_str = input_str.replace('\n', '\\\\\n')
+    input_str = input_str.replace('{', r'\{')
+    input_str = input_str.replace('}', r'\}')
+    input_str = input_str.replace('^', r'\ensuremath{\hat{\;}}')
+    input_str = escape(input_str)
+    return input_str
 
-def ordoescape(input, esc=True):
+def ordoescape(input_str, esc=True):
     if esc:
-        input = escape(input)
-    start = input.find("O(")
+        input_str = escape(input_str)
+    start = input_str.find("O(")
     if start >= 0:
         bracketcount = 1
-        end = start+1
-        while end+1<len(input) and bracketcount>0:
+        end = start + 1
+        while end + 1 < len(input_str) and bracketcount > 0:
             end = end + 1
-            if input[end] == '(':
+            if input_str[end] == '(':
                 bracketcount = bracketcount + 1
-            elif input[end] == ')':
+            elif input_str[end] == ')':
                 bracketcount = bracketcount - 1
         if bracketcount == 0:
-            return r"%s\bigo{%s}%s" % (input[:start], input[start+2:end], ordoescape(input[end+1:], False))
-    return input
+            return r"%s\bigo{%s}%s" % (input_str[:start], input_str[start+2:end], ordoescape(input_str[end+1:], False))
+    return input_str
 
 def processwithcomments(caption):
   code = ''
-  instream = open(caption)
+  ext = os.path.splitext(caption)[1].lower()
+  lang = EXT_TO_LANG.get(ext, 'C++')
+
   knowncommands = ['Author', 'Date', 'Description', 'Source', 'Time', 'Memory', 'License', 'Status', 'Usage', 'Details']
-  # requiredcommands = ['Author', 'Description']
   requiredcommands = []
   includelist = []
   error = ""
   warning = ""
-  # Read lines from source file
+
+  # Read lines from source file safely
   try:
-    lines = instream.readlines()
-  except:
-    error = "Could not read source."
+    with open(caption, 'r', encoding='utf-8', errors='replace') as instream:
+      lines = instream.readlines()
+  except Exception as e:
+    error = f"Could not read source: {e}"
+    lines = []
+
   nlines = list()
   for line in lines:
     if 'exclude-line' in line:
@@ -125,12 +140,8 @@ def processwithcomments(caption):
       continue
     if had_comment and not line:
       continue
-    # Check includes
-    # include = parse_include(line)
-    # if include is not None and not keep_include:
-    #   includelist.append(include)
-    #   continue
     nlines.append(line)
+
   # Remove and process multiline comments
   source = '\n'.join(nlines)
   nsource = ''
@@ -140,7 +151,7 @@ def processwithcomments(caption):
   while start >= 0 and not error:
     nsource = nsource.rstrip() + source[end:start]
     end = source.find(end_str, start2)
-    if end<start:
+    if end < start:
       error = "Invalid %s %s comments." % (source[start:start2], end_str)
       break
     comment = source[start2:end].strip()
@@ -156,8 +167,11 @@ def processwithcomments(caption):
       if cline.startswith('*'):
         cline = cline[1:].strip()
         allow_command = True
+      elif end_str in ["'''", '"""']:
+        allow_command = True
+
       ind = cline.find(':')
-      if allow_command and ind != -1 and ' ' not in cline[:ind] and cline[0].isalpha() and cline[0].isupper():
+      if allow_command and ind != -1 and ' ' not in cline[:ind] and len(cline) > 0 and cline[0].isalpha() and cline[0].isupper():
         if command:
           if command not in knowncommands:
             error = error + "Unknown command: " + command + ". "
@@ -170,9 +184,10 @@ def processwithcomments(caption):
       if command not in knowncommands:
         error = error + "Unknown command: " + command + ". "
       commands[command] = value.lstrip()
+
   for rcommand in sorted(set(requiredcommands) - set(commands)):
     error = error + "Missing command: " + rcommand + ". "
-  if end>=0:
+  if end >= 0:
     nsource = nsource.rstrip() + source[end:]
   nsource = nsource.strip()
 
@@ -183,7 +198,6 @@ def processwithcomments(caption):
   if error:
     print(r"error{%s: %s}" % (caption, error))
   else:
-    # addref(caption, outstream)
     if commands.get("Description"):
         out.append(r"\printdescription{%s}" % escape(commands["Description"]))
     if commands.get("Usage"):
@@ -192,16 +206,9 @@ def processwithcomments(caption):
         out.append(r"\printtime{%s}" % ordoescape(commands["Time"]))
     if commands.get("Memory"):
         out.append(r"\printmemory{%s}" % ordoescape(commands["Memory"]))
-    # if includelist:
-    #     out.append(r"\leftcaption{%s}" % pathescape(", ".join(includelist)))
-    # if nsource:
-        # out.append(r"\rightcaption{%s%d lines}" % (hsh, len(nsource.split("\n"))))
-    # langstr = ", language="+listingslang
-    # out.append(r"\begin{lstlisting}[caption={%s}%s]" % (pathescape(caption), langstr))
-    out.append('\\begin{minted}[' + minted_opts + ']{C++}\n')
+    out.append(f'\\begin{{minted}}[{minted_opts}]{{{lang}}}\n')
     out.append(nsource)
     out.append('\\end{minted}\n')
-    # out.append(r"\end{lstlisting}")
 
   for line in out:
     code = code + line + '\n'
@@ -221,9 +228,12 @@ def gen(level):
   files.sort()
 
   parent = os.getcwd()
+  sec_tag = section[min(level, len(section) - 1)]
+
   for folder in folders:
-    text = text + '\\' + section[level] + '{' + folder + '}\n'
-    child = parent + "/" + folder
+    escaped_folder = folder.replace('_', r'\_')
+    text = text + '\\' + sec_tag + '{' + escaped_folder + '}\n'
+    child = os.path.join(parent, folder)
     os.chdir(child)
     gen(level + 1)
     os.chdir(parent)
@@ -232,11 +242,18 @@ def gen(level):
     name, ext = os.path.splitext(file)
     if ext not in ['.cpp', '.py', '.java', '.tex', '.h']:
       continue
-    name = re.sub('_','\\_', name)
+    escaped_name = name.replace('_', r'\_')
 
-    text = text + '\\' + section[level] + '{' + name + '}\n'
+    text = text + '\\' + sec_tag + '{' + escaped_name + '}\n'
     if ext == '.tex':
-      text = text + '\\input{' + '\"' + os.getcwd() + '/' + file + '\"' + '}\n'
+      try:
+        with open(file, 'r', encoding='utf-8', errors='replace') as tex_f:
+          tex_content = tex_f.read()
+        # Remove \end{document} if present so the outer document remains open
+        tex_content = re.sub(r'\\end\{document\}', '', tex_content)
+        text = text + tex_content + '\n'
+      except Exception as e:
+        print(f"Error reading {file}: {e}")
     else:
       source = processwithcomments(file)
       text = text + source
@@ -247,36 +264,61 @@ def main():
 
   main_dir = os.getcwd()
 
-  try:
-    os.chdir('code')
-  except:
-    print("Error!\nFolder \'code\' not found!")
-    sys.exit()
+  if not os.path.isdir('code'):
+    print("Error!\nFolder 'code' not found!")
+    sys.exit(1)
 
+  os.chdir('code')
   gen(0)
+  os.chdir(main_dir)
 
+  if not os.path.isdir('template'):
+    print("Error!\nFolder 'template' not found!")
+    sys.exit(1)
+
+  text = text + '\\end{multicols*}\n'
+  text = text + '\\end{document}\n'
+
+  template_dir = os.path.join(main_dir, 'template')
+  os.chdir(template_dir)
   try:
-    os.chdir(main_dir + '/template')
-  except:
-    print("Error!\nFolder \'template\' not found!")
-    sys.exit()
+    with open('template.tex', 'r', encoding='utf-8') as f:
+      template_content = f.read()
+    
+    full_text = template_content + text
+    with open('notebook.tex', 'w', encoding='utf-8') as f:
+      f.write(full_text)
 
-  text = text + '\\end{multicols}\n'
-  text = text + '\\end{document}'
+    print("Generating Notebook...")
+    print("This may take a while. Please wait...")
+    for i in range(4):
+      subprocess.run(
+        'pdflatex -interaction=nonstopmode --shell-escape notebook.tex',
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+      )
 
-  file = open('template.tex', 'r')
-  text = file.read() + text
-  file.close()
-  file = open('notebook.tex', 'w')
-  file.write(text)
-  file.close()
-  print("Generating Notebook...")
-  print("This may take a while. Please wait...")
-  for i in range(4):
-    subprocess.run('pdflatex -interaction=nonstopmode --shell-escape notebook.tex', shell=True, stdout=subprocess.PIPE)
-  os.system('rm -r _minted-notebook')
-  os.system('mv notebook.pdf ' + '\"' + main_dir + '\"')
-  os.system('rm notebook.*')
-  print('Done!')
+    if os.path.exists('_minted-notebook'):
+      shutil.rmtree('_minted-notebook', ignore_errors=True)
 
-main()
+    if os.path.exists('notebook.pdf'):
+      target_pdf = os.path.join(main_dir, 'notebook.pdf')
+      shutil.move('notebook.pdf', target_pdf)
+      # Clean up intermediate notebook compilation files
+      for f in os.listdir('.'):
+        if f.startswith('notebook.') and f != 'notebook.tex':
+          try:
+            os.remove(f)
+          except OSError:
+            pass
+      if os.path.exists('notebook.tex'):
+        os.remove('notebook.tex')
+      print('Done!')
+    else:
+      print("Error: notebook.pdf was not generated. Please check template/notebook.log.")
+  finally:
+    os.chdir(main_dir)
+
+if __name__ == '__main__':
+  main()

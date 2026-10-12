@@ -1,17 +1,16 @@
-\documentclass[10pt, landscape, a4paper, onesided]{extarticle}
-\usepackage{xcolor}
+\documentclass[10pt, landscape, a4paper, oneside]{extarticle}
+\usepackage[dvipsnames]{xcolor}
 
 \definecolor{pupil}{RGB}{0, 128, 10}
 \definecolor{specialist}{RGB}{3, 168, 158}
 \definecolor{expert}{RGB}{3, 168, 158}
 \newcommand{\universityName}{Daffodil International University}
 \newcommand{\teamName}{DIU\_Long-Heavy-Light}
-\newcommand{\firstMember}{\color{specialist}AnupBarman}
-\newcommand{\secondMember}{\color{specialist}SiyamBhuiyan}
-\newcommand{\thirdMember}{\color{pupil}nahid1607}
+\newcommand{\firstMember}{\textcolor{specialist}{AnupBarman}}
+\newcommand{\secondMember}{\textcolor{specialist}{SiyamBhuiyan}}
+\newcommand{\thirdMember}{\textcolor{pupil}{nahid1607}}
 
 \usepackage{minted}
-\usepackage{sectsty}
 \usepackage{fouriernc}
 \usepackage[T1]{fontenc}
 \usepackage{framed}
@@ -25,7 +24,6 @@
 \usepackage{amsmath}
 \usepackage{verbatim}
 \usepackage{hyperref}
-\usepackage[dvipsnames]{xcolor}
 \usepackage{multicol}
 \usepackage{geometry}
 \usepackage{amssymb,tikz,psfrag,epstopdf}
@@ -107,9 +105,9 @@
 \textheight = 7.95in
 \footskip = 0mm
 
-\titlespacing*{\section}{0pt}{0}{0}
-\titlespacing*{\subsection}{0pt}{0}{0}
-\titlespacing*{\subsubsection}{0pt}{0}{0}
+\titlespacing*{\section}{0pt}{0pt}{0pt}
+\titlespacing*{\subsection}{0pt}{0pt}{0pt}
+\titlespacing*{\subsubsection}{0pt}{0pt}{0pt}
 
 \titleformat{\section}
   {\normalfont\fontsize{10}{15}\bfseries}{\thesection}{1em}{}
@@ -117,7 +115,6 @@
   {\normalfont\fontsize{8}{15}\bfseries}{\thesubsection}{1em}{}
 \titleformat{\subsubsection}
   {\normalfont\fontsize{8}{15}\bfseries}{\thesubsubsection}{1em}{}
-\subsectionfont{\Huge}
 
 \begin{document}
 \maketeampage
