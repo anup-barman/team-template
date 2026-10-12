@@ -1,4 +1,4 @@
-const int N = 10000000;
+const int N = 1e8 + 10;
 vector<int> lp(N + 1), pr;
 
 for (int i = 2; i <= N; ++i) {
