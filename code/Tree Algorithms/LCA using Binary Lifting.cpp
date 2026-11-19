@@ -1,45 +1,32 @@
-int n, l;
-vector<vector<int>> adj;
-
-int timer;
-vector<int> tin, tout;
-vector<vector<int>> up;
-
-void dfs(int v, int p) {
-  tin[v] = ++timer;
-  up[v][0] = p;
-  for (int i = 1; i <= l; ++i)
-    up[v][i] = up[up[v][i - 1]][i - 1];
-
-  for (int u : adj[v]) {
-    if (u != p)
-      dfs(u, v);
+const int MX = 2e5 + 10;
+const int LOG = 20;
+vector<int> g[MX];
+int up[MX][LOG], depth[MX];
+void dfs(int u, int p) {
+  up[u][0] = p;
+  for (int k = 1; k < LOG; ++k) {
+    up[u][k] = up[up[u][k - 1]][k - 1];
   }
-
-  tout[v] = ++timer;
+  for (const auto& v : g[u]) {
+    if (v == p) continue;
+    depth[v] = depth[u] + 1;
+    dfs(v, u);
+  }
 }
-
-bool is_ancestor(int u, int v) {
-  return tin[u] <= tin[v] && tout[u] >= tout[v];
-}
-
 int lca(int u, int v) {
-  if (is_ancestor(u, v))
-    return u;
-  if (is_ancestor(v, u))
-    return v;
-  for (int i = l; i >= 0; --i) {
-    if (!is_ancestor(up[u][i], v))
+  if (depth[u] < depth[v]) swap(u, v);
+  int diff = depth[u] - depth[v];
+  for (int i = LOG - 1; i >= 0; --i) {
+    if ((diff >> i) & 1) {
       u = up[u][i];
+    }
+  }
+  if (u == v) return u;
+  for (int i = LOG - 1; i >= 0; --i) {
+    if (up[u][i] != up[v][i]) {
+      u = up[u][i];
+      v = up[v][i];
+    }
   }
   return up[u][0];
-}
-
-void preprocess(int root) {
-  tin.resize(n);
-  tout.resize(n);
-  timer = 0;
-  l = ceil(log2(n));
-  up.assign(n, vector<int>(l + 1));
-  dfs(root, root);
 }

@@ -1,3 +1,21 @@
+/*
+   V = total vertex Count
+1. Matching:
+   Max edges with no shared vertices.
+2. Bipartite Minimum Vertex Cover:
+   Size: MVC = Maximum Matching (Konig).
+   Vertices: Left NOT reachable + Right reachable
+   (alternating BFS from unmatched left vertices).
+3. Maximum Independent Set:
+   Max vertices with no edges between them.
+   MIS = V - MVC.
+4. Minimum Edge Cover:
+   Min edges touching every vertex.
+   MEC = V - Maximum Matching.
+Note:
+- Konig's theorem applies only to bipartite graphs.
+- Edge Cover formula requires no isolated vertices.
+*/
 const long long inf = 1LL << 61;
 struct Dinic {
   struct edge {

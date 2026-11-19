@@ -1,59 +1,56 @@
-vector<bool> visited; // keeps track of which vertices are already visited
-
-// runs depth first search starting at vertex v.
-// each visited vertex is appended to the output vector when dfs leaves it.
-void dfs(int v, vector<vector<int>> const& adj, vector<int> &output) {
-    visited[v] = true;
-    for (auto u : adj[v])
-        if (!visited[u])
-            dfs(u, adj, output);
-    output.push_back(v);
+// given a directed graph return the minimum number of edges to be added so that the whole graph  become an SCC
+bool vis[N];
+vector<int> g[N], r[N], G[N], vec; //G is the condensed graph
+void dfs1(int u) {
+  vis[u] = 1;
+  for(auto v: g[u]) if(!vis[v]) dfs1(v);
+  vec.push_back(u);
 }
 
-// input: adj -- adjacency list of G
-// output: components -- the strongy connected components in G
-// output: adj_cond -- adjacency list of G^SCC (by root vertices)
-void strongly_connected_components(vector<vector<int>> const& adj,
-                                  vector<vector<int>> &components,
-                                  vector<vector<int>> &adj_cond) {
-    int n = adj.size();
-    components.clear(), adj_cond.clear();
+vector<int> comp;
+void dfs2(int u) {
+  comp.push_back(u);
+  vis[u] = 1;
+  for(auto v: r[u]) if(!vis[v]) dfs2(v);
+}
 
-    vector<int> order; // will be a sorted list of G's vertices by exit time
+int idx[N], in[N], out[N];
 
-    visited.assign(n, false);
-
-    // first series of depth first searches
-    for (int i = 0; i < n; i++)
-        if (!visited[i])
-            dfs(i, adj, order);
-
-    // create adjacency list of G^T
-    vector<vector<int>> adj_rev(n);
-    for (int v = 0; v < n; v++)
-        for (int u : adj[v])
-            adj_rev[u].push_back(v);
-
-    visited.assign(n, false);
-    reverse(order.begin(), order.end());
-
-    vector<int> roots(n, 0); // gives the root vertex of a vertex's SCC
-
-    // second series of depth first searches
-    for (auto v : order)
-        if (!visited[v]) {
-            std::vector<int> component;
-            dfs(v, adj_rev, component);
-            components.push_back(component);
-            int root = *component.begin();
-            for (auto u : component)
-                roots[u] = root;
-        }
-
-    // add edges to condensation graph
-    adj_cond.assign(n, {});
-    for (int v = 0; v < n; v++)
-        for (auto u : adj[v])
-            if (roots[v] != roots[u])
-                adj_cond[roots[v]].push_back(roots[u]);
+int main() {
+  int n, m;
+  cin >> n >> m;
+  for(int i = 1; i <= m; i++) {
+    int u, v;
+    cin >> u >> v;
+    g[u].push_back(v);
+    r[v].push_back(u);
+  }
+  for(int i = 1; i <= n; i++) if(!vis[i]) dfs1(i);
+  reverse(vec.begin(), vec.end());
+  memset(vis, 0, sizeof vis);
+  int scc = 0;
+  for(auto u: vec) {
+    if(!vis[u]) {
+      comp.clear();
+      dfs2(u);
+      scc++;
+      for(auto x: comp) idx[x]=scc;
+    }
+  }
+  for(int u = 1; u <= n; u++) {
+    for(auto v: g[u]) {
+      if(idx[u] != idx[v]) {
+        in[idx[v]]++, out[idx[u]]++;
+        G[idx[u]].push_back(idx[v]);
+      }
+    }
+  }
+  int needed_in=0, needed_out=0;
+  for(int i = 1; i <= scc; i++) {
+    if(!in[i]) needed_in++;
+    if(!out[i]) needed_out++;
+  }
+  int ans = max(needed_in, needed_out);
+  if(scc == 1) ans = 0;
+  cout << ans << '\n';
 }
